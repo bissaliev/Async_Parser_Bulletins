@@ -1,36 +1,35 @@
+from functools import wraps
 from typing import Any, Callable
 
 from config import settings
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 # DATABASE_URL = settings.get_db_postgres_url()
 DATABASE_URL = settings.get_db_sqlite_url()
 
-engine = create_engine(DATABASE_URL)
+engine = create_async_engine(DATABASE_URL)
 
 
-class BaseModel(DeclarativeBase): ...
+class BaseModel(AsyncAttrs, DeclarativeBase):
+    __abstract__ = True
 
 
-SessionLocal = sessionmaker(autoflush=False, bind=engine)
+AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
 
-BaseModel.metadata.create_all(bind=engine)
-
-
-def context_session(func: Callable[..., Any]) -> Callable[..., Any]:
+def async_context_session(func: Callable[..., Any]) -> Callable[..., Any]:
     """Декоратор для управления сессией SQLAlchemy"""
 
-    def wrapper(*args, **kwargs):
-        session = SessionLocal()
-        try:
-            result = func(session, *args, **kwargs)
-            return result
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        async with AsyncSessionLocal() as session:
+            try:
+                result = await func(session, *args, **kwargs)
+                await session.commit()
+                return result
+            except Exception as e:
+                await session.rollback()
+                raise e
 
     return wrapper
