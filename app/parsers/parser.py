@@ -14,9 +14,9 @@ class Parser:
         self.min_year = min_year
         self.current_year = current_year
 
-    def extract_files(self) -> list[tuple[str, date]]:
+    def extract_file_links(self) -> list[tuple[str, date]]:
         """Извлечение ссылок на файл и дату торгов"""
-        files = []
+        file_links = []
         for item in self.soup.select(".accordeon-inner__item"):
             try:
                 link = self._get_link_to_file(item)
@@ -26,20 +26,15 @@ class Parser:
                 if not bidding_date:
                     continue
                 if not self._check_year(bidding_date):
-                    logger.info(
-                        f"Дата {bidding_date} вне диапазона "
-                        f"[{self.min_year}, {self.current_year}]."
-                    )
+                    logger.info(f"Дата {bidding_date} вне диапазона [{self.min_year}, {self.current_year}].")
                     break  # Прерываем цикл, если условие не выполняется
                 file_url = link["href"]
                 if file_url:
-                    files.append((file_url, bidding_date))
+                    file_links.append((file_url, bidding_date))
             except Exception as e:
-                logger.error(
-                    f"Ошибка при обработке элемента: {e}", exc_info=True
-                )
-        logger.info(f"Найдено {len(files)} ссылок")
-        return files
+                logger.error(f"Ошибка при обработке элемента: {e}", exc_info=True)
+        logger.info(f"Найдено {len(file_links)} ссылок")
+        return file_links
 
     def _get_link_to_file(self, tag: Tag) -> str:
         """Получение ссылки на файл"""
@@ -48,9 +43,7 @@ class Parser:
     def _get_bidding_date(self, tag: Tag) -> date | None:
         """Получение даты торгов"""
         try:
-            date_span = tag.select_one(
-                ".accordeon-inner__item-inner__title span"
-            )
+            date_span = tag.select_one(".accordeon-inner__item-inner__title span")
             if not date_span:
                 return None
             date_text = date_span.text.strip()
@@ -65,16 +58,3 @@ class Parser:
     def _check_year(self, bidding_date: date) -> bool:
         """Проверка даты торгов на соответствие заданному периоду"""
         return self.min_year <= bidding_date.year <= self.current_year
-
-    def get_next_page(self) -> str | None:
-        """Получение ссылки на следующую страницу"""
-        try:
-            next_page_tag = self.soup.select_one(
-                ".bx-pagination-container .bx-pag-next a"
-            )
-            return next_page_tag["href"] if next_page_tag else None
-        except Exception as e:
-            logger.error(
-                f"Ошибка при получении следующей страницы: {e}", exc_info=True
-            )
-            return None
