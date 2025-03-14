@@ -1,109 +1,99 @@
+import asyncio
+import io
 import time
-from datetime import datetime
+from datetime import date, datetime
 
+import aiohttp
 from database.crud import mass_create_trade
-from exceptions import RequestProcessingError, XLSExtractorError
 from logging_config import logger
 from parsers.parser import Parser
-from parsers.scraper import download_file_as_bytes, get_page
 from utils.file_utils import XLSExtractor
 
 BASE_URL = "https://spimex.com"
-START_PAGE = (
-    "https://spimex.com/markets/oil_products/trades/results/?page=page-1"
-)
+PAGE_URL = BASE_URL + "/markets/oil_products/trades/results/"
 CURRENT_YEAR = datetime.now().year
 MIN_YEAR = 2023
+FIRST_PAGE = 1
+LAST_PAGE = 384
+MAX_CONCURRENT_REQUESTS = 15  # Максимальное число одновременных запросов
 
 
-def main():
-    """Главный модуль"""
-    current_page = START_PAGE
-    count_entries = 0
-    count_pages = 0
-    logger.info("Начало парсинга страниц...")
+async def fetch_file(session: aiohttp.ClientSession, url: str):
+    """Скачиваем файл и отдаем контент"""
     try:
-        while current_page:
-            try:
-                logger.info(f"Обрабатывается страница: {current_page}")
-                # Запрашиваем страницу
-                content = get_page(current_page)
-                parser = Parser(content, MIN_YEAR, CURRENT_YEAR)
-            # Останавливаем цикл если загрузка страницы вызывает исключения
-            except RequestProcessingError as e:
-                logger.error(
-                    f"Ошибка при загрузке страницы {current_page}: {e}"
-                )
-                break  # Останавливаем выполнение
+        async with session.get(url, raise_for_status=True) as response:
+            return await response.read()
+    except aiohttp.ClientResponseError as e:
+        logger.error(f"Ошибка при скачивание страницы файла: {e}")
+    except aiohttp.ClientError as e:
+        logger.error(f"Ошибка при скачивание файла: {e}")
 
-            # Получаем ссылки и дату торгов
-            # если список пуст заканчиваем цикл
-            link_files = parser.extract_files()
-            if not link_files:
-                logger.info("Файлы не найдены, завершаем работу.")
-                break
 
-            # В цикле по списку загружаем файл и получаем из него данные
-            logger.info(f"Скачивание файлов со страницы {current_page}")
-            for file_url, bidding_date in link_files:
-                try:
-                    # Загружаем файл
-                    file_stream = download_file_as_bytes(BASE_URL + file_url)
-                    # Получаем данные из файла
-                    xls_extractor = XLSExtractor(file_stream, bidding_date)
-                    data = xls_extractor.get_data()
-                    logger.info(
-                        f"Начало загрузки данных торгов {bidding_date} в БД"
-                    )
-                    # Сохраняем данные в БД
-                    mass_create_trade(data)
-                    count_entries += 1
-                    logger.info(
-                        f"Торги {bidding_date} сохранены ({count_entries})"
-                    )
+async def download_data(session: aiohttp.ClientSession, url: str, bidding_date: date):
+    """Скачивает файл, обрабатывает его и сохраняет данные в БД"""
 
-                except XLSExtractorError as e:
-                    logger.error(
-                        f"Ошибка обработки файла {file_url}: {e}",
-                        exc_info=True,
-                    )
-                    continue
+    content = await fetch_file(session, url)
 
-                except RequestProcessingError as e:
-                    logger.error(
-                        f"Ошибка загрузки файла {file_url}: {e}", exc_info=True
-                    )
-                    continue
+    # Создаем класс извлекающий нужные данные из файла xls
+    xls_extractor = XLSExtractor(io.BytesIO(content), bidding_date)
+    data = xls_extractor.get_data()
 
-                except Exception as e:
-                    logger.error(
-                        f"Неизвестная ошибка обработки файла {file_url}: {e}",
-                        exc_info=True,
-                    )
-                    continue
+    # Сохраняем данные в БД
+    await mass_create_trade(data)
 
-            # Получаем ссылку на следующую страницу
-            next_page = parser.get_next_page()
-            if not next_page:
-                logger.info("Следующая страница не найдена")
-                break
-            current_page = BASE_URL + next_page
-            count_pages += 1
-            logger.info(f"Обработано {count_pages} страниц")
-            time.sleep(2)
 
-    except KeyboardInterrupt:
-        logger.warning(
-            "Программа прервана пользователем (Ctrl + C). Завершение работы..."
-        )
-    except Exception as e:
-        logger.error(f"Программа прервана {e}", exc_info=True)
-    finally:
-        logger.info(
-            f"Завершение работы. Всего обработано {count_pages} страниц. "
-            f"В БД сохранено {count_entries} записей."
-        )
+async def fetch(session: aiohttp.ClientSession, url: str, params=None):
+    """Запрашиваем страницу и отдаем html-страницу"""
+    try:
+        async with session.get(url, params=params) as response:
+            response.raise_for_status()
+            logger.info(f"Страница {response.url} загружена")
+            return await response.text()
+    except aiohttp.ClientResponseError as e:
+        logger.error(f"Ошибка при скачивание страницы {params['page']}: {e.status}")
+    except aiohttp.ClientError as e:
+        logger.error(f"Ошибка при скачивание страницы {params['page']}: {e}")
+
+
+async def process_page(session: aiohttp.ClientSession, page: int):
+    """Обрабатывает одну страницу: парсит ссылки и загружает файлы"""
+    html = await fetch(session, PAGE_URL, params={"page": f"page-{page}"})
+    if html is None:
+        logger.warning(f"Пропускаем страницу {page}, так как HTML не был загружен")
+        return
+    parser = Parser(html, MIN_YEAR, CURRENT_YEAR)
+    file_links = parser.extract_file_links()
+    tasks = []
+    for link, bidding_date in file_links:
+        tasks.append(asyncio.create_task(download_data(session, BASE_URL + link, bidding_date)))
+    await asyncio.gather(*tasks)
+    logger.info(f"Страница {page} загружена")
+
+
+async def main():
+    """Главный модуль"""
+    # В цикле проходимся по страницам со ссылка на файлы
+    tasks = []
+    connector = aiohttp.TCPConnector(limit=MAX_CONCURRENT_REQUESTS)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        for page in range(FIRST_PAGE, LAST_PAGE + 1):
+            tasks.append(asyncio.create_task(process_page(session, page)))
+        try:
+            await asyncio.gather(*tasks)
+            logger.info("Загрузка завершена")
+        except Exception as e:
+            logger.error(f"Произошла ошибка: {e}")
 
 
 if __name__ == "__main__":
-    main()
+    start_time = time.perf_counter()
+    asyncio.run(main())
+    end_time = time.perf_counter()
+    print(f"Время выполнения: {end_time - start_time}")
+
+
+# Время выполнения (5 страниц) 11.814728350000223
+
+# Время выполнения с использованием to_thread (5 страниц): 10.282230708999123
+# Время выполнения с вложенными тасками (5 страниц): 9.705754711998452
+# Время выполнения с вложенными тасками (30 страниц): 27.03962082599901
