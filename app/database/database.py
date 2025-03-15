@@ -5,10 +5,10 @@ from config import settings
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-# DATABASE_URL = settings.get_db_postgres_url()
-DATABASE_URL = settings.get_db_sqlite_url()
+DATABASE_URL = settings.get_db_postgres_url()
+# DATABASE_URL = settings.get_db_sqlite_url()
 
-engine = create_async_engine(DATABASE_URL)
+engine = create_async_engine(DATABASE_URL, pool_size=20, max_overflow=10, pool_timeout=60, pool_pre_ping=True)
 
 
 class BaseModel(AsyncAttrs, DeclarativeBase):
