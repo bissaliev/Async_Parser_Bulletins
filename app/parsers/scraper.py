@@ -21,6 +21,7 @@ async def fetch_file(session: aiohttp.ClientSession, url: str) -> io.BytesIO | N
     try:
         async with session.get(url, raise_for_status=True) as response:
             response.raise_for_status()
+            logger.info(f"Файл {url} загружен на диск")
             return io.BytesIO(await response.read())
     except aiohttp.ClientResponseError as e:
         logger.error(f"Ошибка при скачивание страницы файла: {e}")
