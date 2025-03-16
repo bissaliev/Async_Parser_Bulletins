@@ -9,7 +9,7 @@ from logging_config import logger
 class Parser:
     """Парсер страницы с бюллетенями торгов"""
 
-    def __init__(self, content, min_year, current_year):
+    def __init__(self, content: str, min_year: int, current_year: int):
         self.soup = BeautifulSoup(content, "html.parser")
         self.min_year = min_year
         self.current_year = current_year
