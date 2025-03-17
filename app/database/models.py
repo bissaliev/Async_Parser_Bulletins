@@ -1,9 +1,10 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from database.database import BaseModel
-from sqlalchemy import Numeric, String, func
+from sqlalchemy import func, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
+
+from database.database import BaseModel
 
 
 class SpimexTradingResults(BaseModel):
@@ -19,9 +20,5 @@ class SpimexTradingResults(BaseModel):
     total: Mapped[Decimal] = mapped_column(Numeric(20, 2))
     count: Mapped[int]
     date: Mapped[date]
-    created_on: Mapped[datetime] = mapped_column(
-        server_default=func.now(), default=datetime.now
-    )
-    updated_on: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=datetime.now
-    )
+    created_on: Mapped[datetime] = mapped_column(server_default=func.now(), default=datetime.now)
+    updated_on: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=datetime.now)

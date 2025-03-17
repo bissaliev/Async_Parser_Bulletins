@@ -1,7 +1,8 @@
-from database.database import async_context_session
-from database.models import SpimexTradingResults
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from database.database import async_context_session
+from database.models import SpimexTradingResults
 
 
 @async_context_session

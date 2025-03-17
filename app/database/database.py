@@ -1,9 +1,10 @@
 from functools import wraps
 from typing import Any, Callable
 
-from config import settings
-from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncAttrs, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+
+from config import settings
 
 DATABASE_URL = settings.get_db_postgres_url()
 # DATABASE_URL = settings.get_db_sqlite_url()
