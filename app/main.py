@@ -3,12 +3,13 @@ import time
 from datetime import date, datetime
 
 from aiohttp import ClientSession, TCPConnector
-from database.crud import mass_create_trade
 from exceptions import XLSExtractorError
+from sqlalchemy.exc import SQLAlchemyError
+
+from database.crud import mass_create_trade
 from logging_config import logger
 from parsers.parser import Parser
 from parsers.scraper import fetch_file, fetch_page
-from sqlalchemy.exc import SQLAlchemyError
 from utils.file_utils import XLSExtractor
 
 BASE_URL = "https://spimex.com"
