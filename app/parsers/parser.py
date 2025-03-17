@@ -3,6 +3,7 @@ from datetime import date
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+
 from logging_config import logger
 
 
