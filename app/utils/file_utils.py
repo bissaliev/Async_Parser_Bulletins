@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 import pandas as pd
+
 from exceptions import XLSExtractorError
 from logging_config import logger
 
