@@ -3,10 +3,10 @@ import time
 from datetime import date, datetime
 
 from aiohttp import ClientSession, TCPConnector
-from exceptions import XLSExtractorError
 from sqlalchemy.exc import SQLAlchemyError
 
 from database.crud import mass_create_trade
+from exceptions import XLSExtractorError
 from logging_config import logger
 from parsers.parser import Parser
 from parsers.scraper import fetch_file, fetch_page
@@ -85,4 +85,4 @@ if __name__ == "__main__":
     start_time = time.perf_counter()
     asyncio.run(main())
     end_time = time.perf_counter()
-    print(f"Время выполнения: {end_time - start_time}")
+    logger.info(f"Время выполнения: {end_time - start_time}")

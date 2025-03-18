@@ -2,8 +2,9 @@ import asyncio
 
 from database.database import BaseModel, engine
 from database.models import SpimexTradingResults  # noqa: F401
+from logging_config import logger
 
-print(BaseModel.metadata.tables.keys())
+logger.info(f"Инициализация БД с таблицами: {BaseModel.metadata.tables.keys()}")
 
 
 async def init_db():
