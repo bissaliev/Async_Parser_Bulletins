@@ -31,6 +31,12 @@
 
 ## Запуск
 
+- Клонируйте репозиторий:
+
+    ```bash
+    git clone git@github.com:bissaliev/Async_Parser_Bulletins.git
+    ```
+
 - Создайте файл для переменных окружения(по образцу `.env.example`)
 
 - Запустите докер-контейнер для `PostgreSQL` командой:
